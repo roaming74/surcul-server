@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import time
-import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -9,24 +8,14 @@ CORS(app)
 rooms = {}
 room_counter = 1
 
-def get_public_ip():
-    try:
-        response = requests.get('https://api.ipify.org', timeout=3)
-        return response.text
-    except:
-        return None
-
 @app.route('/create_room', methods=['POST'])
 def create_room():
     global room_counter
     data = request.json
-    host_ip = get_public_ip()
-    if not host_ip:
-        host_ip = request.remote_addr
-    
+    # Здесь главное отличие: мы берем IP от самого Flask, который видит внешний адрес подключившегося
+    host_ip = request.remote_addr
     room_id = str(room_counter)
     room_counter += 1
-    
     rooms[room_id] = {
         "host_ip": host_ip,
         "host_name": data.get("player_name", "Игрок"),
@@ -34,7 +23,7 @@ def create_room():
         "max_players": 2,
         "created_at": time.time()
     }
-    return jsonify({"room_id": room_id, "success": True, "host_ip": host_ip})
+    return jsonify({"room_id": room_id, "success": True})
 
 @app.route('/get_rooms', methods=['GET'])
 def get_rooms():
