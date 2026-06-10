@@ -8,13 +8,13 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# --- НАСТРОЙКИ ПОЧТЫ (это на сервере, никто не увидит!) ---
-EMAIL_ADDRESS = "ТВОЙ_EMAIL@gmail.com"
-EMAIL_PASSWORD = "ТВОЙ_ПАРОЛЬ_ПРИЛОЖЕНИЯ"
+# ЭТИ ДАННЫЕ ТЫ ВВОДИШЬ ОДИН РАЗ НА СЕРВЕРЕ (НЕ В ИГРЕ)
+# ЭТО ДАННЫЕ ТВОЕГО GMAIL
+EMAIL_ADDRESS = "roaming74@gmail.com"
+EMAIL_PASSWORD = "tvoj_parol_prilozhenija"
 
-# Хранилище кодов
-codes = {}  # {email: {"code": 1234, "expires": время}}
-names = {}  # {name: email}
+codes = {}
+names = {}
 
 def send_code_email(email, code):
     try:
@@ -25,16 +25,15 @@ def send_code_email(email, code):
             contents=f"Ваш код: {code}"
         )
         return True
-    except:
+    except Exception as e:
+        print(f"Ошибка: {e}")
         return False
 
 @app.route('/check_name', methods=['POST'])
 def check_name():
     data = request.json
     name = data.get("name")
-    if name in names:
-        return jsonify({"available": False})
-    return jsonify({"available": True})
+    return jsonify({"available": name not in names})
 
 @app.route('/send_code', methods=['POST'])
 def send_code():
@@ -42,20 +41,16 @@ def send_code():
     email = data.get("email")
     name = data.get("name")
     
-    # Проверяем ник
     if name in names:
         return jsonify({"success": False, "error": "Ник уже занят"})
     
-    # Проверяем email (не слишком много запросов)
     if email in codes and codes[email]["expires"] > time.time():
-        return jsonify({"success": False, "error": "Код уже отправлен, подождите"})
+        return jsonify({"success": False, "error": "Подождите 5 минут"})
     
-    # Генерируем код
     code = random.randint(1000, 9999)
     
-    # Отправляем
     if send_code_email(email, code):
-        codes[email] = {"code": code, "expires": time.time() + 300}  # 5 минут
+        codes[email] = {"code": code, "expires": time.time() + 300}
         return jsonify({"success": True})
     else:
         return jsonify({"success": False, "error": "Ошибка отправки"})
@@ -67,19 +62,12 @@ def verify_code():
     code = int(data.get("code"))
     name = data.get("name")
     
-    # Проверяем код
     if email in codes and codes[email]["code"] == code and codes[email]["expires"] > time.time():
-        # Сохраняем ник
         names[name] = email
         del codes[email]
         return jsonify({"success": True})
     else:
         return jsonify({"success": False, "error": "Неверный код"})
-
-@app.route('/get_rooms', methods=['GET'])
-def get_rooms():
-    # Временно возвращаем пустой список, пока без комнат
-    return jsonify({"rooms": []})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
