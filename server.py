@@ -1,82 +1,85 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import time
-import json
+import random
+import yagmail
+import os
 
 app = Flask(__name__)
 CORS(app)
 
-# Хранилище комнат
-rooms = {}
-room_counter = 1
+# --- НАСТРОЙКИ ПОЧТЫ (это на сервере, никто не увидит!) ---
+EMAIL_ADDRESS = "ТВОЙ_EMAIL@gmail.com"
+EMAIL_PASSWORD = "ТВОЙ_ПАРОЛЬ_ПРИЛОЖЕНИЯ"
 
-# Хранилище данных игроков в комнатах
-# {room_id: {"host": "Vlad", "players": [{"name": "Vlad", "ip": "1.2.3.4"}], "created_at": время}}
-game_rooms = {}
+# Хранилище кодов
+codes = {}  # {email: {"code": 1234, "expires": время}}
+names = {}  # {name: email}
 
-@app.route('/create_room', methods=['POST'])
-def create_room():
-    global room_counter
+def send_code_email(email, code):
+    try:
+        yag = yagmail.SMTP(EMAIL_ADDRESS, EMAIL_PASSWORD)
+        yag.send(
+            to=email,
+            subject="Код подтверждения - Surcul Modes",
+            contents=f"Ваш код: {code}"
+        )
+        return True
+    except:
+        return False
+
+@app.route('/check_name', methods=['POST'])
+def check_name():
     data = request.json
-    player_name = data.get("player_name", "Игрок")
-    player_ip = request.remote_addr
+    name = data.get("name")
+    if name in names:
+        return jsonify({"available": False})
+    return jsonify({"available": True})
+
+@app.route('/send_code', methods=['POST'])
+def send_code():
+    data = request.json
+    email = data.get("email")
+    name = data.get("name")
     
-    room_id = str(room_counter)
-    room_counter += 1
+    # Проверяем ник
+    if name in names:
+        return jsonify({"success": False, "error": "Ник уже занят"})
     
-    rooms[room_id] = {
-        "room_id": room_id,
-        "host_name": player_name,
-        "players": 1,
-        "max_players": 2,
-        "host_ip": player_ip,
-        "created_at": time.time()
-    }
+    # Проверяем email (не слишком много запросов)
+    if email in codes and codes[email]["expires"] > time.time():
+        return jsonify({"success": False, "error": "Код уже отправлен, подождите"})
     
-    return jsonify({"room_id": room_id, "success": True, "host_ip": player_ip})
+    # Генерируем код
+    code = random.randint(1000, 9999)
+    
+    # Отправляем
+    if send_code_email(email, code):
+        codes[email] = {"code": code, "expires": time.time() + 300}  # 5 минут
+        return jsonify({"success": True})
+    else:
+        return jsonify({"success": False, "error": "Ошибка отправки"})
+
+@app.route('/verify_code', methods=['POST'])
+def verify_code():
+    data = request.json
+    email = data.get("email")
+    code = int(data.get("code"))
+    name = data.get("name")
+    
+    # Проверяем код
+    if email in codes and codes[email]["code"] == code and codes[email]["expires"] > time.time():
+        # Сохраняем ник
+        names[name] = email
+        del codes[email]
+        return jsonify({"success": True})
+    else:
+        return jsonify({"success": False, "error": "Неверный код"})
 
 @app.route('/get_rooms', methods=['GET'])
 def get_rooms():
-    room_list = []
-    for room_id, room in rooms.items():
-        if room["players"] < room["max_players"]:
-            room_list.append({
-                "room_id": room["room_id"],
-                "host_name": room["host_name"],
-                "players": room["players"],
-                "max_players": room["max_players"]
-            })
-    return jsonify({"rooms": room_list})
-
-@app.route('/join_room', methods=['POST'])
-def join_room():
-    data = request.json
-    room_id = data.get("room_id")
-    player_name = data.get("player_name")
-    player_ip = request.remote_addr
-    
-    if room_id in rooms and rooms[room_id]["players"] < rooms[room_id]["max_players"]:
-        rooms[room_id]["players"] += 1
-        return jsonify({
-            "success": True, 
-            "host_ip": rooms[room_id]["host_ip"],
-            "room_id": room_id
-        })
-    return jsonify({"success": False, "error": "Комната заполнена или не существует"})
-
-@app.route('/leave_room', methods=['POST'])
-def leave_room():
-    data = request.json
-    room_id = data.get("room_id")
-    if room_id in rooms:
-        rooms[room_id]["players"] -= 1
-        if rooms[room_id]["players"] <= 0:
-            del rooms[room_id]
-    return jsonify({"success": True})
-
-@app.route('/rooms', methods=['GET'])
-def get_all_rooms():
-    return jsonify({"rooms": list(rooms.values())})
+    # Временно возвращаем пустой список, пока без комнат
+    return jsonify({"rooms": []})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
