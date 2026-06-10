@@ -8,7 +8,7 @@ import re
 app = Flask(__name__)
 CORS(app)
 
-EMAIL_ADDRESS = "roaming74@gmail.com"
+EMAIL_ADDRESS = "arosvlad3@gmail.com"
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 
 codes = {}
