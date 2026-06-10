@@ -3,22 +3,30 @@ from flask_cors import CORS
 import time
 import random
 import yagmail
-import os
+import re
 
 app = Flask(__name__)
 CORS(app)
 
-# БЕРЁМ ПАРОЛЬ ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ (НЕ ИЗ КОДА!)
-EMAIL_ADDRESS = os.environ.get("EMAIL_ADDRESS")
+EMAIL_ADDRESS = "roaming74@gmail.com"
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 
 codes = {}
 names = {}
 
-def send_code_email(email, code):
+def is_valid_email(email):
+    """Проверка, похоже ли на email"""
+    regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(regex, email) is not None
+
+def send_code_email(to_email, code):
     try:
         yag = yagmail.SMTP(EMAIL_ADDRESS, EMAIL_PASSWORD)
-        yag.send(to=email, subject="Код подтверждения - Surcul Modes", contents=f"Ваш код: {code}")
+        yag.send(
+            to=to_email,
+            subject="Код подтверждения - Surcul Modes",
+            contents=f"Ваш код: {code}"
+        )
         return True
     except:
         return False
@@ -35,19 +43,26 @@ def send_code():
     email = data.get("email")
     name = data.get("name")
     
+    # Проверка 1: Ник уже занят
     if name in names:
         return jsonify({"success": False, "error": "Ник уже занят"})
     
+    # Проверка 2: Неправильный email (там где "ЛДОАВПМИРЫОЛДВРТСВЛДОСЬЛДОАР")
+    if not is_valid_email(email):
+        return jsonify({"success": False, "error": "Неверный формат email"})
+    
+    # Проверка 3: Слишком часто
     if email in codes and codes[email]["expires"] > time.time():
         return jsonify({"success": False, "error": "Подождите 5 минут"})
     
     code = random.randint(1000, 9999)
     
+    # Проверка 4: Не удалось отправить письмо (почта существует, но письмо не ушло)
     if send_code_email(email, code):
         codes[email] = {"code": code, "expires": time.time() + 300}
         return jsonify({"success": True})
     else:
-        return jsonify({"success": False, "error": "Ошибка отправки"})
+        return jsonify({"success": False, "error": "Не удалось отправить код"})
 
 @app.route('/verify_code', methods=['POST'])
 def verify_code():
