@@ -8,10 +8,9 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# ЭТИ ДАННЫЕ ТЫ ВВОДИШЬ ОДИН РАЗ НА СЕРВЕРЕ (НЕ В ИГРЕ)
-# ЭТО ДАННЫЕ ТВОЕГО GMAIL
-EMAIL_ADDRESS = "roaming74@gmail.com"
-EMAIL_PASSWORD = "tvoj_parol_prilozhenija"
+# БЕРЁМ ПАРОЛЬ ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ (НЕ ИЗ КОДА!)
+EMAIL_ADDRESS = os.environ.get("EMAIL_ADDRESS")
+EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 
 codes = {}
 names = {}
@@ -19,14 +18,9 @@ names = {}
 def send_code_email(email, code):
     try:
         yag = yagmail.SMTP(EMAIL_ADDRESS, EMAIL_PASSWORD)
-        yag.send(
-            to=email,
-            subject="Код подтверждения - Surcul Modes",
-            contents=f"Ваш код: {code}"
-        )
+        yag.send(to=email, subject="Код подтверждения - Surcul Modes", contents=f"Ваш код: {code}")
         return True
-    except Exception as e:
-        print(f"Ошибка: {e}")
+    except:
         return False
 
 @app.route('/check_name', methods=['POST'])
