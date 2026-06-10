@@ -4,6 +4,7 @@ import time
 import random
 import yagmail
 import re
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -15,18 +16,13 @@ codes = {}
 names = {}
 
 def is_valid_email(email):
-    """Проверка, похоже ли на email"""
     regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(regex, email) is not None
 
 def send_code_email(to_email, code):
     try:
         yag = yagmail.SMTP(EMAIL_ADDRESS, EMAIL_PASSWORD)
-        yag.send(
-            to=to_email,
-            subject="Код подтверждения - Surcul Modes",
-            contents=f"Ваш код: {code}"
-        )
+        yag.send(to=to_email, subject="Код подтверждения - Surcul Modes", contents=f"Ваш код: {code}")
         return True
     except:
         return False
@@ -43,21 +39,17 @@ def send_code():
     email = data.get("email")
     name = data.get("name")
     
-    # Проверка 1: Ник уже занят
     if name in names:
         return jsonify({"success": False, "error": "Ник уже занят"})
     
-    # Проверка 2: Неправильный email (там где "ЛДОАВПМИРЫОЛДВРТСВЛДОСЬЛДОАР")
     if not is_valid_email(email):
         return jsonify({"success": False, "error": "Неверный формат email"})
     
-    # Проверка 3: Слишком часто
     if email in codes and codes[email]["expires"] > time.time():
         return jsonify({"success": False, "error": "Подождите 5 минут"})
     
     code = random.randint(1000, 9999)
     
-    # Проверка 4: Не удалось отправить письмо (почта существует, но письмо не ушло)
     if send_code_email(email, code):
         codes[email] = {"code": code, "expires": time.time() + 300}
         return jsonify({"success": True})
